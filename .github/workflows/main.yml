@@ -1,26 +1,39 @@
-name: macOS RDP
-on: workflow_dispatch
+name: macOS RDP via Tailscale
+
+on:
+  workflow_dispatch: # Isse tum manual start kar paoge
 
 jobs:
-  mac-rdp:
+  build:
     runs-on: macos-latest
+
     steps:
-      - name: Install and Connect Tailscale
-        run: |
-          # Mac par Tailscale install kar rahe hain
-          brew install tailscale
-          
-          # Background mein Tailscale service start kar rahe hain
-          sudo tailscaled > /dev/null 2>&1 &
-          sleep 5
-          
-          # Authkey se login kar rahe hain
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=mac-rdp-runner
+    - name: Setup Tailscale
+      uses: tailscale/github-action@v2
+      with:
+        authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-      - name: Start Screen Sharing (VNC)
-        run: |
-          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw 123456 -restart -agent -privs -all
-          echo "Screen sharing started. VNC Password is: 123456"
+    - name: Enable Screen Sharing (VNC) and Set Password
+      run: |
+        echo "Setting up VNC and User Password..."
+        # Yahan hum 'runner' (macOS user) ka password 'MacRDP@1234' set kar rahe hain
+        sudo dscl . -passwd /Users/runner "MacRDP@1234"
+        
+        # Mac mein VNC Screen Sharing ON kar rahe hain aur RealVNC ke liye set kar rahe hain
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw "MacRDP@1234" -restart -agent -privs -all
 
-      - name: Keep Server Running
-        run: sleep 6h
+    - name: 🟢 PRINT CONNECTION DETAILS 🟢
+      run: |
+        echo "======================================================"
+        echo "🍎 TUMHARA MAC RDP CONNECT HONE KE LIYE READY HAI! 🍎"
+        echo "======================================================"
+        echo "🌐 RealVNC IP Address : $(tailscale ip -4)"
+        echo "👤 Username           : runner"
+        echo "🔑 Password           : MacRDP@1234"
+        echo "======================================================"
+        echo "Bhai, upar diya gaya IP address RealVNC Viewer mein dalo aur connect karo!"
+
+    - name: Keep RDP Alive (Running)
+      run: |
+        echo "Mac chal raha hai... Is step ko cancel mat karna warna PC band ho jayega."
+        while true; do sleep 60; done
