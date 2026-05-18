@@ -1,0 +1,20 @@
+name: macOS RDP
+on: workflow_dispatch
+
+jobs:
+  mac-rdp:
+    runs-on: macos-latest
+    steps:
+      - name: Connect to Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
+          version: latest
+
+      - name: Start Screen Sharing (VNC)
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw 123456 -restart -agent -privs -all
+          echo "Screen sharing started. VNC Password is: 123456"
+
+      - name: Keep Server Running
+        run: sleep 6h
