@@ -19,21 +19,22 @@ jobs:
             --socket=/tmp/tailscaled.sock \
             > /tmp/tailscaled.log 2>&1 &
           sleep 8
-          echo "Tailscale Daemon started"
 
       - name: Connect to Tailscale
         run: |
-          echo "Connecting to Tailscale..."
           sudo tailscale --socket=/tmp/tailscaled.sock up \
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" \
             --hostname="mac-runner-${{ github.run_id }}" \
             --accept-routes
           sleep 5
-          echo "Connected to Tailscale!"
 
-      - name: Enable VNC Screen Sharing (8-Digit Password Fix)
+      - name: Create New RDP User & Enable VNC
         run: |
-          echo "Configuring VNC with strict 8-character password..."
+          echo "Naya Mac User bana rahe hain jisse koi error na aaye..."
+          # Ek naya Admin user bana rahe hain
+          sudo sysadminctl -addUser rdpuser -fullName "RDP User" -password "12345678" -admin
+          
+          # VNC ON kar rahe hain naye user ke liye
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
             -clientopts -setvnclegacy -vnclegacy yes \
@@ -45,19 +46,13 @@ jobs:
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
-          echo "  🍎 MAC RDP READY! 🍎"
+          echo "  🍎 MAC RDP READY WITH NEW USER! 🍎"
           echo "============================================"
           echo "  🌐 VNC IP       : $TAILSCALE_IP"
-          echo "  🔑 VNC Password : 12345678"
+          echo "  👤 Username     : rdpuser"
+          echo "  🔑 Password     : 12345678"
           echo "============================================"
-          echo "TIPS FOR REALVNC VIEWER:"
-          echo "1. IP Address mein upar wala IP daalein."
-          echo "2. Agar Username maange, toh box khali chhod dein."
-          echo "3. Password mein 12345678 daalein."
 
       - name: Keep Session Alive
         run: |
-          echo "RDP Session chal raha hai... Isko band mat karna."
-          while true; do
-            sleep 60
-          done
+          while true; do sleep 60; done
