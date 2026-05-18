@@ -9,28 +9,34 @@ jobs:
 
     steps:
     - name: Setup Tailscale
-      uses: tailscale/github-action@v3   # <-- YAHAN v2 ki jagah v3 kar diya hai
+      uses: tailscale/github-action@v2
       with:
         authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
-    - name: Enable Screen Sharing (VNC) and Set Password
+    - name: Configure VNC (No Password Error Fix)
       run: |
-        echo "Setting up VNC and User Password..."
-        sudo dscl . -passwd /Users/runner "MacRDP@1234"
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw "MacRDP@1234" -restart -agent -privs -all
+        echo "Configuring VNC Server..."
+        
+        # VNC Password set karne ka naya aur safe tareeqa
+        # Password yahan 'MacRDP@1234' hai
+        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+        -activate -configure -access -on \
+        -clientopts -setvnclegacy -vnclegacy yes \
+        -clientopts -setvncpw -vncpw "MacRDP@1234" \
+        -restart -agent -privs -all
 
     - name: 🟢 PRINT CONNECTION DETAILS 🟢
       run: |
         echo "======================================================"
-        echo "🍎 TUMHARA MAC RDP CONNECT HONE KE LIYE READY HAI! 🍎"
+        echo "🍎 MAC RDP READY! ERROR FIXED 🍎"
         echo "======================================================"
         echo "🌐 RealVNC IP Address : $(tailscale ip -4)"
         echo "👤 Username           : runner"
-        echo "🔑 Password           : MacRDP@1234"
+        echo "🔑 VNC Password       : MacRDP@1234"
         echo "======================================================"
-        echo "Bhai, upar diya gaya IP address RealVNC Viewer mein dalo aur connect karo!"
+        echo "Tip: Agar Username maange toh 'runner' daal dena ya khali chhod dena."
 
-    - name: Keep RDP Alive (Running)
+    - name: Keep RDP Alive
       run: |
-        echo "Mac chal raha hai... Is step ko cancel mat karna warna PC band ho jayega."
+        echo "RDP Chal raha hai... Isse band mat hone dena."
         while true; do sleep 60; done
