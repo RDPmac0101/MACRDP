@@ -1,18 +1,20 @@
-name: macOS 14 RDP via Tailscale (Sonoma Bypass)
+name: macOS RDP via Tailscale (Fixed)
 
-on:
+on: 
   workflow_dispatch:
 
 jobs:
   mac-rdp:
-    runs-on: macos-14 # Wapas tumhari pasand ka Mac 14!
-    timeout-minutes: 360
+    runs-on: macos-13  # Bahi, hum macOS 13 use kar rahe hain taaki security errors bypass ho jayein!
+    timeout-minutes: 360  # RDP 6 ghante tak chalega
 
     steps:
-      - name: Install Tailscale
+      - name: Install Tailscale Manually (Fixing Linux-only error)
+        # Bahi hum manual install kar rahe hain, action use nahi kar rahe
         run: brew install tailscale
 
-      - name: Start Tailscale daemon
+      - name: Start Tailscale Daemon
+        # Background mein Tailscale chalu karte hain socket aur state files define karke
         run: |
           sudo tailscaled \
             --state=/tmp/tailscaled.state \
@@ -20,50 +22,50 @@ jobs:
             > /tmp/tailscaled.log 2>&1 &
           sleep 8
 
-      - name: Connect to Tailscale
+      - name: Connect to Tailscale (Requires TAILSCALE_AUTHKEY Secret)
+        # Yahan hum GitHub Secret 'TAILSCALE_AUTHKEY' use kar rahe hain
         run: |
           sudo tailscale --socket=/tmp/tailscaled.sock up \
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" \
-            --hostname="mac-runner-${{ github.run_id }}" \
+            --hostname="mac-rdp-runner" \
             --accept-routes
           sleep 5
 
-      - name: macOS 14 Security Bypass & Force VNC
+      - name: Create New RDP User (Fixing password permission errors)
+        # Bahi hum ek naya user banayenge taaki permission error na aaye
         run: |
-          echo "macOS 14 (Sonoma) ki security bypass kar rahe hain..."
+          echo "Naya user bana rahe hain rdpuser/12345678"
+          sudo sysadminctl -addUser rdpuser -fullName "RDP User" -password "12345678" -admin
           
-          # 1. Naya user (macrdp) ban banana
-          sudo sysadminctl -addUser macrdp -fullName "Mac RDP" -password "12345678" -admin
-          sudo dseditgroup -o edit -a macrdp -t user admin
-          
-          # 2. Apple ke TCC Database me zabardasti Screen Recording permissions inject karna
-          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','com.apple.screensharing.agent',0,2,4,1,NULL,NULL,0,'XPO',NULL,0,NULL);" || true
-          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAccessibility','com.apple.screensharing.agent',0,2,4,1,NULL,NULL,0,'XPO',NULL,0,NULL);" || true
-          
-          # 3. VNC ko legacy password (12345678) ke sath start karna
+          # VNC Access is user ko permission allow kar rahe hain
+          sudo dseditgroup -o edit -a rdpuser -t user com.apple.access_screensharing
+
+      - name: Enable Screen Sharing (VNC) & Force Start
+        # VNC ko chalu karne ki command, force restart ke sath
+        run: |
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
-            -clientopts -setvnclegacy -vnclegacy yes \
-            -clientopts -setvncpw -vncpw "12345678" \
-            -restart -agent -privs -all
-          
-          # 4. macOS 14 mein Service ko background se explicitly force ON karna
-          sudo launchctl enable system/com.apple.screensharing
-          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
-          
+            -allowAccessFor -specifiedUsers \
+            -restart -agent -privs -all \
+            -clientopts -setvncpw -vncpw "12345678"
           sleep 5
 
       - name: 🟢 PRINT CONNECTION DETAILS 🟢
+        # Logs mein connection info print karega. Bada green point logs ke end mein dhoondo.
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
-          echo "============================================"
-          echo "  🍎 MAC RDP READY (macOS 14 SONOMA FIX) 🍎"
-          echo "============================================"
-          echo "  🌐 VNC IP       : $TAILSCALE_IP"
-          echo "  👤 Username     : macrdp"
-          echo "  🔑 Password     : 12345678"
-          echo "============================================"
+          echo "====================================================="
+          echo "🍎 MAC RDP READY TO CONNECT! 🍎"
+          echo "====================================================="
+          echo "🌐 VNC IP Address : $TAILSCALE_IP"
+          echo "🌐 Port           : 5900"
+          echo "👤 Username       : rdpuser"
+          echo "🔑 Password       : 12345678"
+          echo "====================================================="
+          echo "Tip: Connect se pehle RealVNC mein picture quality 'Auto' ya 'Low' rakhein."
 
-      - name: Keep Session Alive
+      - name: Keep Session Alive (6 Hours)
+        # RDP window ko khula rakhne ke liye infinite loop
         run: |
+          echo "RDP up and running... Connect now!"
           while true; do sleep 60; done
