@@ -22,27 +22,11 @@ jobs:
           sleep 8
           echo "Daemon started"
 
-      - name: Connect to Tailscale via OAuth
+      - name: Connect to Tailscale (Simple Method)
         run: |
-          echo "Step 1: Getting OAuth access token..."
-          ACCESS_TOKEN=$(curl -s \
-            -X POST \
-            -d "client_id=${{ secrets.TS_OAUTH_CLIENT_ID }}&client_secret=${{ secrets.TS_OAUTH_CLIENT_SECRET }}&grant_type=client_credentials" \
-            "https://api.tailscale.com/api/v2/oauth/token" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
-
-          echo "Step 2: Creating auth key using access token..."
-          AUTH_KEY=$(curl -s \
-            -X POST \
-            -H "Authorization: Bearer $ACCESS_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"capabilities":{"devices":{"create":{"reusable":false,"ephemeral":true,"preauthorized":true}}},"expirySeconds":300}' \
-            "https://api.tailscale.com/api/v2/tailnet/-/keys" \
-            | python3 -c "import sys,json; print(json.load(sys.stdin)['key'])")
-
-          echo "Step 3: Connecting to Tailscale..."
+          echo "Connecting to Tailscale..."
           sudo tailscale --socket=/tmp/tailscaled.sock up \
-            --authkey="$AUTH_KEY" \
+            --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" \
             --hostname="mac-runner-${{ github.run_id }}" \
             --accept-routes
           sleep 5
@@ -61,7 +45,7 @@ jobs:
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
-          echo "  MAC RDP READY!"
+          echo "  🍎 MAC RDP READY! 🍎"
           echo "============================================"
           echo "  VNC IP       : $TAILSCALE_IP"
           echo "  Port         : 5900"
