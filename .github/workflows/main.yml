@@ -1,7 +1,7 @@
 name: macOS RDP via Tailscale
 
 on:
-  workflow_dispatch: # Isse tum manual start kar paoge
+  workflow_dispatch:
 
 jobs:
   build:
@@ -9,17 +9,14 @@ jobs:
 
     steps:
     - name: Setup Tailscale
-      uses: tailscale/github-action@v2
+      uses: tailscale/github-action@v3   # <-- YAHAN v2 ki jagah v3 kar diya hai
       with:
         authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
 
     - name: Enable Screen Sharing (VNC) and Set Password
       run: |
         echo "Setting up VNC and User Password..."
-        # Yahan hum 'runner' (macOS user) ka password 'MacRDP@1234' set kar rahe hain
         sudo dscl . -passwd /Users/runner "MacRDP@1234"
-        
-        # Mac mein VNC Screen Sharing ON kar rahe hain aur RealVNC ke liye set kar rahe hain
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart -activate -configure -access -on -clientopts -setvnclegacy -vnclegacy yes -clientopts -setvncpw -vncpw "MacRDP@1234" -restart -agent -privs -all
 
     - name: 🟢 PRINT CONNECTION DETAILS 🟢
