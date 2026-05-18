@@ -8,17 +8,22 @@ jobs:
     runs-on: macos-latest
 
     steps:
-    - name: Setup Tailscale
-      uses: tailscale/github-action@v2
-      with:
-        authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-
-    - name: Configure VNC (No Password Error Fix)
+    - name: Install and Setup Tailscale Manually (macOS Fix)
       run: |
-        echo "Configuring VNC Server..."
+        echo "Tailscale install ho raha hai..."
+        # Mac par Tailscale manually install kar rahe hain
+        brew install tailscale
         
-        # VNC Password set karne ka naya aur safe tareeqa
-        # Password yahan 'MacRDP@1234' hai
+        # Tailscale ko background mein start kar rahe hain
+        sudo tailscaled > /dev/null 2>&1 &
+        sleep 10
+        
+        # Tumhari Auth Key se connect kar rahe hain
+        sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=mac-rdp-runner
+
+    - name: Configure VNC (Password Fix)
+      run: |
+        echo "VNC Server setup ho raha hai..."
         sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
         -activate -configure -access -on \
         -clientopts -setvnclegacy -vnclegacy yes \
@@ -28,15 +33,15 @@ jobs:
     - name: 🟢 PRINT CONNECTION DETAILS 🟢
       run: |
         echo "======================================================"
-        echo "🍎 MAC RDP READY! ERROR FIXED 🍎"
+        echo "🍎 MAC RDP READY! ALL ERRORS FIXED 🍎"
         echo "======================================================"
         echo "🌐 RealVNC IP Address : $(tailscale ip -4)"
         echo "👤 Username           : runner"
         echo "🔑 VNC Password       : MacRDP@1234"
         echo "======================================================"
-        echo "Tip: Agar Username maange toh 'runner' daal dena ya khali chhod dena."
+        echo "Bhai jaldi se upar wala IP daalo aur connect karo!"
 
     - name: Keep RDP Alive
       run: |
-        echo "RDP Chal raha hai... Isse band mat hone dena."
+        echo "RDP chal raha hai... jab tak use karna hai isko band mat karna."
         while true; do sleep 60; done
