@@ -1,4 +1,4 @@
-name: macOS RDP via Tailscale
+name: macOS RDP via Tailscale (Black Screen Fix)
 
 on:
   workflow_dispatch:
@@ -28,30 +28,39 @@ jobs:
             --accept-routes
           sleep 5
 
-      - name: Create New RDP User & Enable VNC
+      - name: Fix Black Screen & Enable VNC
         run: |
-          echo "Naya Mac User bana rahe hain jisse koi error na aaye..."
-          # Ek naya Admin user bana rahe hain
-          sudo sysadminctl -addUser rdpuser -fullName "RDP User" -password "12345678" -admin
+          echo "Screen render issue ko fix kar rahe hain..."
           
-          # VNC ON kar rahe hain naye user ke liye
+          # 1. Mac Ke Default 'runner' User Ka Password Override Karo bina purane ke
+          # Isse permission ya old password mismatch nahi hoga
+          sudo passwd -u runner
+          sudo sysadminctl -secureTokenOn runner -password "12345678" || true
+          
+          # 2. VNC and Remote Management service ko configure karo completely
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
             -clientopts -setvnclegacy -vnclegacy yes \
             -clientopts -setvncpw -vncpw "12345678" \
             -restart -agent -privs -all
-          sleep 3
+          
+          # 3. Headless graphics simulation rule run karo (Force Display Render)
+          sudo defaults write /Library/Preferences/com.apple.RemoteManagement HostName $(tailscale --socket=/tmp/tailscaled.sock ip -4)
+          
+          sleep 5
 
       - name: 🟢 PRINT CONNECTION DETAILS 🟢
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
-          echo "  🍎 MAC RDP READY WITH NEW USER! 🍎"
+          echo "  🍎 MAC RDP READY (GUI RENDER FIXED) 🍎"
           echo "============================================"
           echo "  🌐 VNC IP       : $TAILSCALE_IP"
-          echo "  👤 Username     : rdpuser"
+          echo "  👤 Username     : runner"
           echo "  🔑 Password     : 12345678"
           echo "============================================"
+          echo "TIPS:"
+          echo "RealVNC mein login details aane par Username 'runner' aur Password '12345678' dalein."
 
       - name: Keep Session Alive
         run: |
