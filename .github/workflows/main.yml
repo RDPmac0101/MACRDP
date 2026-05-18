@@ -1,20 +1,19 @@
-name: macOS RDP via Tailscale (Fixed)
+name: macOS 14 RDP via Tailscale
 
-on: 
+on:
   workflow_dispatch:
 
 jobs:
   mac-rdp:
-    runs-on: macos-13  # Bahi, hum macOS 13 use kar rahe hain taaki security errors bypass ho jayein!
-    timeout-minutes: 360  # RDP 6 ghante tak chalega
+    runs-on: macos-14
+    timeout-minutes: 360
 
     steps:
-      - name: Install Tailscale Manually (Fixing Linux-only error)
-        # Bahi hum manual install kar rahe hain, action use nahi kar rahe
+
+      - name: Install Tailscale
         run: brew install tailscale
 
-      - name: Start Tailscale Daemon
-        # Background mein Tailscale chalu karte hain socket aur state files define karke
+      - name: Start Tailscale daemon
         run: |
           sudo tailscaled \
             --state=/tmp/tailscaled.state \
@@ -22,50 +21,82 @@ jobs:
             > /tmp/tailscaled.log 2>&1 &
           sleep 8
 
-      - name: Connect to Tailscale (Requires TAILSCALE_AUTHKEY Secret)
-        # Yahan hum GitHub Secret 'TAILSCALE_AUTHKEY' use kar rahe hain
+      - name: Connect to Tailscale
         run: |
           sudo tailscale --socket=/tmp/tailscaled.sock up \
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" \
-            --hostname="mac-rdp-runner" \
+            --hostname="mac-runner-${{ github.run_id }}" \
             --accept-routes
           sleep 5
 
-      - name: Create New RDP User (Fixing password permission errors)
-        # Bahi hum ek naya user banayenge taaki permission error na aaye
+      - name: Install displayplacer (Virtual Display Fix)
         run: |
-          echo "Naya user bana rahe hain rdpuser/12345678"
-          sudo sysadminctl -addUser rdpuser -fullName "RDP User" -password "12345678" -admin
-          
-          # VNC Access is user ko permission allow kar rahe hain
-          sudo dseditgroup -o edit -a rdpuser -t user com.apple.access_screensharing
+          brew install jakehilborn/jakehilborn/displayplacer
 
-      - name: Enable Screen Sharing (VNC) & Force Start
-        # VNC ko chalu karne ki command, force restart ke sath
+      - name: Create Virtual Display & Fix Black Screen
         run: |
+          echo "Virtual display bana rahe hain..."
+
+          # WindowServer ko kick karo
+          sudo launchctl kickstart -k system/com.apple.WindowServer || true
+          sleep 3
+
+          # Virtual display resolution set karo
+          displayplacer "res:1920x1080 hz:60 color_depth:8 enabled:true scaling:off origin:(0,0) degree:0" || true
+          sleep 2
+
+          # Display ko wake karo
+          sudo screencapture -x /tmp/display_wake.png || true
+
+          echo "Virtual display ready!"
+
+      - name: Create User & Enable VNC
+        run: |
+          # User banana
+          sudo sysadminctl -addUser macrdp -fullName "Mac RDP" -password "12345678" -admin || true
+          sudo dseditgroup -o edit -a macrdp -t user admin || true
+
+          # TCC permissions
+          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
+            "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','com.apple.screensharing.agent',0,2,4,1,NULL,NULL,0,'XPO',NULL,0,NULL);" || true
+
+          # Firewall OFF
+          sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
+
+          # VNC enable
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
-            -allowAccessFor -specifiedUsers \
-            -restart -agent -privs -all \
-            -clientopts -setvncpw -vncpw "12345678"
+            -clientopts -setvnclegacy -vnclegacy yes \
+            -clientopts -setvncpw -vncpw "12345678" \
+            -restart -agent -privs -all
+
+          # Screensharing service force ON
+          sudo launchctl enable system/com.apple.screensharing
+          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist || true
+
           sleep 5
 
-      - name: 🟢 PRINT CONNECTION DETAILS 🟢
-        # Logs mein connection info print karega. Bada green point logs ke end mein dhoondo.
+          # Confirm port 5900 chal raha hai
+          echo "Port check:"
+          sudo lsof -i :5900 || echo "Port 5900 nahi mila!"
+
+      - name: Print Connection Details
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
-          echo "====================================================="
-          echo "🍎 MAC RDP READY TO CONNECT! 🍎"
-          echo "====================================================="
-          echo "🌐 VNC IP Address : $TAILSCALE_IP"
-          echo "🌐 Port           : 5900"
-          echo "👤 Username       : rdpuser"
-          echo "🔑 Password       : 12345678"
-          echo "====================================================="
-          echo "Tip: Connect se pehle RealVNC mein picture quality 'Auto' ya 'Low' rakhein."
+          echo "============================================"
+          echo "  MAC RDP READY!"
+          echo "============================================"
+          echo "  VNC IP   : $TAILSCALE_IP"
+          echo "  Username : macrdp"
+          echo "  Password : 12345678"
+          echo "  Port     : 5900"
+          echo "============================================"
 
-      - name: Keep Session Alive (6 Hours)
-        # RDP window ko khula rakhne ke liye infinite loop
+      - name: Keep Session Alive
         run: |
-          echo "RDP up and running... Connect now!"
-          while true; do sleep 60; done
+          # Har minute display refresh karo taaki black na aaye
+          while true; do
+            sudo screencapture -x /tmp/keep_alive.png || true
+            sleep 60
+            echo "alive - $(date)"
+          done
