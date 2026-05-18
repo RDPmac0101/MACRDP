@@ -5,11 +5,17 @@ jobs:
   mac-rdp:
     runs-on: macos-latest
     steps:
-      - name: Connect to Tailscale
-        uses: tailscale/github-action@v2
-        with:
-          authkey: ${{ secrets.TAILSCALE_AUTHKEY }}
-          version: latest
+      - name: Install and Connect Tailscale
+        run: |
+          # Mac par Tailscale install kar rahe hain
+          brew install tailscale
+          
+          # Background mein Tailscale service start kar rahe hain
+          sudo tailscaled > /dev/null 2>&1 &
+          sleep 5
+          
+          # Authkey se login kar rahe hain
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=mac-rdp-runner
 
       - name: Start Screen Sharing (VNC)
         run: |
