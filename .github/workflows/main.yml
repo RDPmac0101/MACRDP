@@ -4,44 +4,65 @@ on:
   workflow_dispatch:
 
 jobs:
-  build:
+  mac-rdp:
     runs-on: macos-latest
+    timeout-minutes: 360
 
     steps:
-    - name: Install and Setup Tailscale Manually (macOS Fix)
-      run: |
-        echo "Tailscale install ho raha hai..."
-        # Mac par Tailscale manually install kar rahe hain
-        brew install tailscale
-        
-        # Tailscale ko background mein start kar rahe hain
-        sudo tailscaled > /dev/null 2>&1 &
-        sleep 10
-        
-        # Tumhari Auth Key se connect kar rahe hain
-        sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTHKEY }} --hostname=mac-rdp-runner
+      - name: Install Tailscale
+        run: brew install tailscale
 
-    - name: Configure VNC (Password Fix)
-      run: |
-        echo "VNC Server setup ho raha hai..."
-        sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
-        -activate -configure -access -on \
-        -clientopts -setvnclegacy -vnclegacy yes \
-        -clientopts -setvncpw -vncpw "MacRDP@1234" \
-        -restart -agent -privs -all
+      - name: Start tailscaled daemon
+        run: |
+          sudo tailscaled \
+            --state=/tmp/tailscaled.state \
+            --socket=/tmp/tailscaled.sock \
+            > /tmp/tailscaled.log 2>&1 &
+          sleep 8
 
-    - name: 🟢 PRINT CONNECTION DETAILS 🟢
-      run: |
-        echo "======================================================"
-        echo "🍎 MAC RDP READY! ALL ERRORS FIXED 🍎"
-        echo "======================================================"
-        echo "🌐 RealVNC IP Address : $(tailscale ip -4)"
-        echo "👤 Username           : runner"
-        echo "🔑 VNC Password       : MacRDP@1234"
-        echo "======================================================"
-        echo "Bhai jaldi se upar wala IP daalo aur connect karo!"
+      - name: Connect to Tailscale via OAuth
+        run: |
+          # Get a short-lived auth key using your OAuth client
+          TOKEN=$(curl -s \
+            -d "client_id=${{ secrets.TS_OAUTH_CLIENT_ID }}" \
+            -d "client_secret=${{ secrets.TS_OAUTH_CLIENT_SECRET }}" \
+            -d "grant_type=client_credentials" \
+            "https://api.tailscale.com/api/v2/oauth/token" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin)['access_token'])")
 
-    - name: Keep RDP Alive
-      run: |
-        echo "RDP chal raha hai... jab tak use karna hai isko band mat karna."
-        while true; do sleep 60; done
+          sudo tailscale --socket=/tmp/tailscaled.sock up \
+            --authkey="$TOKEN" \
+            --hostname="mac-runner-${{ github.run_id }}" \
+            --accept-routes \
+            --ssh
+          sleep 5
+
+      - name: Enable VNC Screen Sharing
+        run: |
+          sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
+            -activate -configure -access -on \
+            -clientopts -setvnclegacy -vnclegacy yes \
+            -clientopts -setvncpw -vncpw "MacRDP@1234" \
+            -restart -agent -privs -all
+          sleep 3
+
+      - name: Print Connection Details
+        run: |
+          TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
+          echo "============================================"
+          echo "  MAC RDP READY!"
+          echo "============================================"
+          echo "  VNC IP       : $TAILSCALE_IP"
+          echo "  Port         : 5900"
+          echo "  Username     : runner"
+          echo "  VNC Password : MacRDP@1234"
+          echo "============================================"
+          echo "  Connect from RealVNC or any VNC client"
+          echo "  Address format: $TAILSCALE_IP:5900"
+
+      - name: Keep Session Alive
+        run: |
+          while true; do
+            sleep 60
+            echo "[$(date)] Session alive..."
+          done
