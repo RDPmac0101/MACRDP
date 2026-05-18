@@ -35,12 +35,10 @@ jobs:
 
       - name: Create Virtual Display & Fix Black Screen
         run: |
-          echo "Virtual display bana rahe hain..."
+          echo "Virtual display configure kar rahe hain..."
 
-          # WindowServer ko kick karo
-          sudo launchctl kickstart -k system/com.apple.WindowServer || true
-          sleep 3
-
+          # Note: Humne WindowServer restart wali line hata di hai jisse Code 143 crash ho raha tha.
+          
           # Virtual display resolution set karo
           displayplacer "res:1920x1080 hz:60 color_depth:8 enabled:true scaling:off origin:(0,0) degree:0" || true
           sleep 2
@@ -48,7 +46,7 @@ jobs:
           # Display ko wake karo
           sudo screencapture -x /tmp/display_wake.png || true
 
-          echo "Virtual display ready!"
+          echo "Virtual display bypass lag gaya!"
 
       - name: Create User & Enable VNC
         run: |
@@ -98,5 +96,5 @@ jobs:
           while true; do
             sudo screencapture -x /tmp/keep_alive.png || true
             sleep 60
-            echo "alive - $(date)"
+            echo "Session active - $(date)"
           done
