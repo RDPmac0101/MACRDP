@@ -1,4 +1,4 @@
-name: macOS 14 RDP via Tailscale
+name: macOS 14 RDP (Default User Fix)
 
 on:
   workflow_dispatch:
@@ -9,7 +9,6 @@ jobs:
     timeout-minutes: 360
 
     steps:
-
       - name: Install Tailscale
         run: brew install tailscale
 
@@ -29,72 +28,35 @@ jobs:
             --accept-routes
           sleep 5
 
-      - name: Install displayplacer (Virtual Display Fix)
+      - name: Enable VNC (Without changing Mac Password)
         run: |
-          brew install jakehilborn/jakehilborn/displayplacer
-
-      - name: Create Virtual Display & Fix Black Screen
-        run: |
-          echo "Virtual display configure kar rahe hain..."
-
-          # Note: Humne WindowServer restart wali line hata di hai jisse Code 143 crash ho raha tha.
+          echo "Mac ka password nahi badal rahe, sirf VNC ka set kar rahe hain..."
           
-          # Virtual display resolution set karo
-          displayplacer "res:1920x1080 hz:60 color_depth:8 enabled:true scaling:off origin:(0,0) degree:0" || true
-          sleep 2
-
-          # Display ko wake karo
-          sudo screencapture -x /tmp/display_wake.png || true
-
-          echo "Virtual display bypass lag gaya!"
-
-      - name: Create User & Enable VNC
-        run: |
-          # User banana
-          sudo sysadminctl -addUser macrdp -fullName "Mac RDP" -password "12345678" -admin || true
-          sudo dseditgroup -o edit -a macrdp -t user admin || true
-
-          # TCC permissions
-          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db \
-            "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','com.apple.screensharing.agent',0,2,4,1,NULL,NULL,0,'XPO',NULL,0,NULL);" || true
-
-          # Firewall OFF
-          sudo /usr/libexec/ApplicationFirewall/socketfilterfw --setglobalstate off
-
-          # VNC enable
+          # Sirf VNC service ko ON karna aur uska internal password set karna
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
             -clientopts -setvnclegacy -vnclegacy yes \
             -clientopts -setvncpw -vncpw "12345678" \
             -restart -agent -privs -all
-
-          # Screensharing service force ON
-          sudo launchctl enable system/com.apple.screensharing
-          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist || true
-
+            
           sleep 5
 
-          # Confirm port 5900 chal raha hai
-          echo "Port check:"
-          sudo lsof -i :5900 || echo "Port 5900 nahi mila!"
-
-      - name: Print Connection Details
+      - name: 🟢 PRINT CONNECTION DETAILS 🟢
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
-          echo "  MAC RDP READY!"
+          echo "  🍎 MAC RDP READY (DEFAULT RUNNER) 🍎"
           echo "============================================"
-          echo "  VNC IP   : $TAILSCALE_IP"
-          echo "  Username : macrdp"
-          echo "  Password : 12345678"
-          echo "  Port     : 5900"
+          echo "  🌐 VNC IP       : $TAILSCALE_IP"
+          echo "  👤 Username     : runner (Ya khali chhod do)"
+          echo "  🔑 VNC Password : 12345678"
           echo "============================================"
 
-      - name: Keep Session Alive
+      - name: Keep GUI Alive (Prevent Black Screen)
         run: |
-          # Har minute display refresh karo taaki black na aaye
+          echo "Display ko awake rakhne wala loop chalu hai..."
           while true; do
-            sudo screencapture -x /tmp/keep_alive.png || true
-            sleep 60
-            echo "Session active - $(date)"
+            # Ye command headless Mac ko screen render karne pe majboor karti hai
+            sudo screencapture -x /tmp/awake.png > /dev/null 2>&1 || true
+            sleep 30
           done
