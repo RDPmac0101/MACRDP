@@ -1,11 +1,11 @@
-name: macOS RDP via Tailscale (Fix Authentication)
+name: macOS 14 RDP via Tailscale (Sonoma Bypass)
 
 on:
   workflow_dispatch:
 
 jobs:
   mac-rdp:
-    runs-on: macos-latest
+    runs-on: macos-14 # Wapas tumhari pasand ka Mac 14!
     timeout-minutes: 360
 
     steps:
@@ -28,39 +28,41 @@ jobs:
             --accept-routes
           sleep 5
 
-      - name: Create RDP User & Force Permissions
+      - name: macOS 14 Security Bypass & Force VNC
         run: |
-          echo "Naya user 'macrdp' bana rahe hain..."
+          echo "macOS 14 (Sonoma) ki security bypass kar rahe hain..."
           
-          # 1. Naya user banana (macrdp / 12345678)
+          # 1. Naya user (macrdp) ban banana
           sudo sysadminctl -addUser macrdp -fullName "Mac RDP" -password "12345678" -admin
+          sudo dseditgroup -o edit -a macrdp -t user admin
           
-          # 2. User ko Remote Management group mein add karna
-          sudo dseditgroup -o edit -a macrdp -t user com.apple.access_screensharing
+          # 2. Apple ke TCC Database me zabardasti Screen Recording permissions inject karna
+          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceScreenCapture','com.apple.screensharing.agent',0,2,4,1,NULL,NULL,0,'XPO',NULL,0,NULL);" || true
+          sudo sqlite3 /Library/Application\ Support/com.apple.TCC/TCC.db "INSERT OR REPLACE INTO access VALUES('kTCCServiceAccessibility','com.apple.screensharing.agent',0,2,4,1,NULL,NULL,0,'XPO',NULL,0,NULL);" || true
           
-          # 3. VNC ko activate karna aur legacy password set karna
+          # 3. VNC ko legacy password (12345678) ke sath start karna
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
-            -allowAccessFor -specifiedUsers \
-            -targetuser macrdp \
-            -privs -all \
             -clientopts -setvnclegacy -vnclegacy yes \
             -clientopts -setvncpw -vncpw "12345678" \
-            -restart -agent
-            
-          echo "Permissions granted!"
+            -restart -agent -privs -all
+          
+          # 4. macOS 14 mein Service ko background se explicitly force ON karna
+          sudo launchctl enable system/com.apple.screensharing
+          sudo launchctl load -w /System/Library/LaunchDaemons/com.apple.screensharing.plist
+          
+          sleep 5
 
       - name: 🟢 PRINT CONNECTION DETAILS 🟢
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
-          echo "  🍎 MAC RDP READY (STABLE FIX) 🍎"
+          echo "  🍎 MAC RDP READY (macOS 14 SONOMA FIX) 🍎"
           echo "============================================"
           echo "  🌐 VNC IP       : $TAILSCALE_IP"
           echo "  👤 Username     : macrdp"
           echo "  🔑 Password     : 12345678"
           echo "============================================"
-          echo "Connect karte waqt Username 'macrdp' zaroor daalna!"
 
       - name: Keep Session Alive
         run: |
