@@ -1,4 +1,4 @@
-name: macOS RDP via Tailscale (Black Screen Fix)
+name: macOS RDP via Tailscale (Fix Authentication)
 
 on:
   workflow_dispatch:
@@ -28,39 +28,39 @@ jobs:
             --accept-routes
           sleep 5
 
-      - name: Fix Black Screen & Enable VNC
+      - name: Create RDP User & Force Permissions
         run: |
-          echo "Screen render issue ko fix kar rahe hain..."
+          echo "Naya user 'macrdp' bana rahe hain..."
           
-          # 1. Mac Ke Default 'runner' User Ka Password Override Karo bina purane ke
-          # Isse permission ya old password mismatch nahi hoga
-          sudo passwd -u runner
-          sudo sysadminctl -secureTokenOn runner -password "12345678" || true
+          # 1. Naya user banana (macrdp / 12345678)
+          sudo sysadminctl -addUser macrdp -fullName "Mac RDP" -password "12345678" -admin
           
-          # 2. VNC and Remote Management service ko configure karo completely
+          # 2. User ko Remote Management group mein add karna
+          sudo dseditgroup -o edit -a macrdp -t user com.apple.access_screensharing
+          
+          # 3. VNC ko activate karna aur legacy password set karna
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
+            -allowAccessFor -specifiedUsers \
+            -targetuser macrdp \
+            -privs -all \
             -clientopts -setvnclegacy -vnclegacy yes \
             -clientopts -setvncpw -vncpw "12345678" \
-            -restart -agent -privs -all
-          
-          # 3. Headless graphics simulation rule run karo (Force Display Render)
-          sudo defaults write /Library/Preferences/com.apple.RemoteManagement HostName $(tailscale --socket=/tmp/tailscaled.sock ip -4)
-          
-          sleep 5
+            -restart -agent
+            
+          echo "Permissions granted!"
 
       - name: 🟢 PRINT CONNECTION DETAILS 🟢
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
-          echo "  🍎 MAC RDP READY (GUI RENDER FIXED) 🍎"
+          echo "  🍎 MAC RDP READY (STABLE FIX) 🍎"
           echo "============================================"
           echo "  🌐 VNC IP       : $TAILSCALE_IP"
-          echo "  👤 Username     : runner"
+          echo "  👤 Username     : macrdp"
           echo "  🔑 Password     : 12345678"
           echo "============================================"
-          echo "TIPS:"
-          echo "RealVNC mein login details aane par Username 'runner' aur Password '12345678' dalein."
+          echo "Connect karte waqt Username 'macrdp' zaroor daalna!"
 
       - name: Keep Session Alive
         run: |
