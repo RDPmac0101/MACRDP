@@ -9,7 +9,6 @@ jobs:
     timeout-minutes: 360
 
     steps:
-
       - name: Install Tailscale
         run: brew install tailscale
 
@@ -20,9 +19,9 @@ jobs:
             --socket=/tmp/tailscaled.sock \
             > /tmp/tailscaled.log 2>&1 &
           sleep 8
-          echo "Daemon started"
+          echo "Tailscale Daemon started"
 
-      - name: Connect to Tailscale (Simple Method)
+      - name: Connect to Tailscale
         run: |
           echo "Connecting to Tailscale..."
           sudo tailscale --socket=/tmp/tailscaled.sock up \
@@ -30,31 +29,35 @@ jobs:
             --hostname="mac-runner-${{ github.run_id }}" \
             --accept-routes
           sleep 5
-          echo "Connected!"
+          echo "Connected to Tailscale!"
 
-      - name: Enable VNC Screen Sharing
+      - name: Enable VNC Screen Sharing (8-Digit Password Fix)
         run: |
+          echo "Configuring VNC with strict 8-character password..."
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
             -clientopts -setvnclegacy -vnclegacy yes \
-            -clientopts -setvncpw -vncpw "MacRDP@1234" \
+            -clientopts -setvncpw -vncpw "12345678" \
             -restart -agent -privs -all
           sleep 3
 
-      - name: Print Connection Details
+      - name: 🟢 PRINT CONNECTION DETAILS 🟢
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
           echo "  🍎 MAC RDP READY! 🍎"
           echo "============================================"
-          echo "  VNC IP       : $TAILSCALE_IP"
-          echo "  Port         : 5900"
-          echo "  VNC Password : MacRDP@1234"
+          echo "  🌐 VNC IP       : $TAILSCALE_IP"
+          echo "  🔑 VNC Password : 12345678"
           echo "============================================"
+          echo "TIPS FOR REALVNC VIEWER:"
+          echo "1. IP Address mein upar wala IP daalein."
+          echo "2. Agar Username maange, toh box khali chhod dein."
+          echo "3. Password mein 12345678 daalein."
 
       - name: Keep Session Alive
         run: |
+          echo "RDP Session chal raha hai... Isko band mat karna."
           while true; do
             sleep 60
-            echo "Session alive - $(date)"
           done
