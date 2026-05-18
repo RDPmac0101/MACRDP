@@ -1,4 +1,4 @@
-name: macOS RDP via Tailscale
+name: macOS RDP via Tailscale (Fix Authentication)
 
 on:
   workflow_dispatch:
@@ -9,7 +9,6 @@ jobs:
     timeout-minutes: 360
 
     steps:
-
       - name: Install Tailscale
         run: brew install tailscale
 
@@ -26,33 +25,43 @@ jobs:
           sudo tailscale --socket=/tmp/tailscaled.sock up \
             --authkey="${{ secrets.TAILSCALE_AUTHKEY }}" \
             --hostname="mac-runner-${{ github.run_id }}" \
-            --accept-routes \
-            --timeout=30s
+            --accept-routes
           sleep 5
 
-      - name: Enable VNC
+      - name: Create RDP User & Force Permissions
         run: |
+          echo "Naya user 'macrdp' bana rahe hain..."
+          
+          # 1. Naya user banana (macrdp / 12345678)
+          sudo sysadminctl -addUser macrdp -fullName "Mac RDP" -password "12345678" -admin
+          
+          # 2. User ko Remote Management group mein add karna
+          sudo dseditgroup -o edit -a macrdp -t user com.apple.access_screensharing
+          
+          # 3. VNC ko activate karna aur legacy password set karna
           sudo /System/Library/CoreServices/RemoteManagement/ARDAgent.app/Contents/Resources/kickstart \
             -activate -configure -access -on \
+            -allowAccessFor -specifiedUsers \
+            -targetuser macrdp \
+            -privs -all \
             -clientopts -setvnclegacy -vnclegacy yes \
             -clientopts -setvncpw -vncpw "12345678" \
-            -restart -agent -privs -all
-          sleep 5
+            -restart -agent
+            
+          echo "Permissions granted!"
 
-      - name: Print Connection Details
+      - name: 🟢 PRINT CONNECTION DETAILS 🟢
         run: |
           TAILSCALE_IP=$(sudo tailscale --socket=/tmp/tailscaled.sock ip -4)
           echo "============================================"
-          echo "  MAC RDP READY!"
+          echo "  🍎 MAC RDP READY (STABLE FIX) 🍎"
           echo "============================================"
-          echo "  VNC IP   : $TAILSCALE_IP"
-          echo "  Password : 12345678"
-          echo "  Port     : 5900"
+          echo "  🌐 VNC IP       : $TAILSCALE_IP"
+          echo "  👤 Username     : macrdp"
+          echo "  🔑 Password     : 12345678"
           echo "============================================"
+          echo "Connect karte waqt Username 'macrdp' zaroor daalna!"
 
       - name: Keep Session Alive
         run: |
-          while true; do
-            sleep 60
-            echo "alive - $(date)"
-          done
+          while true; do sleep 60; done
